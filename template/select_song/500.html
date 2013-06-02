@@ -1,0 +1,8 @@
+{% load settings_tags %}
+{% settings MEDIA_URL LOGIN_URL %}
+
+{% if MEDIA_URL and LOGIN_URL %}
+My media_url is : {{ MEDIA_URL }}
+My login url is : {{ LOGIN_URL }}
+
+{% endif %}

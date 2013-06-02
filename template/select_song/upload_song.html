@@ -1,0 +1,14 @@
+<html>
+
+  <body>
+    
+    <form action="/usf" method="POST" enctype="multipart/form-data">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <input type="submit" value="UploadSong" />
+    </form>
+    File should be of <mark>.mp3</mark> extension and should contain only alpanumeric characters.<br />
+    Please clean the name of file by removing the extention and any non alphanumeric characters.
+
+  </body>
+</html>

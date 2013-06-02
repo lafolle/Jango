@@ -1,0 +1,343 @@
+<html><head>
+<title>views.py</title>
+<meta name="Generator" content="htmlizer/[twisted, version 10.2.0]" />
+<link rel="alternate" href="views.py" type="text/x-python" />
+
+</head>
+<body>
+<pre><span class="py-src-keyword">from</span> <span class="py-src-variable">django</span>.<span class="py-src-variable">http</span> <span class="py-src-keyword">import</span> <span class="py-src-variable">HttpResponse</span>, <span class="py-src-variable">HttpResponseRedirect</span>
+<span class="py-src-keyword">from</span> <span class="py-src-variable">select_song</span>.<span class="py-src-variable">models</span> <span class="py-src-keyword">import</span> <span class="py-src-variable">EnglishSong</span>,<span class="py-src-variable">Playlist</span>, <span class="py-src-variable">UserMessage</span>,<span class="py-src-variable">PrivilegeUser</span>,<span class="py-src-variable">UserChoice</span>
+<span class="py-src-keyword">from</span> <span class="py-src-variable">django</span>.<span class="py-src-variable">template</span> <span class="py-src-keyword">import</span> <span class="py-src-variable">Context</span>, <span class="py-src-variable">loader</span>, <span class="py-src-variable">RequestContext</span>
+<span class="py-src-keyword">from</span> <span class="py-src-variable">django</span>.<span class="py-src-variable">shortcuts</span> <span class="py-src-keyword">import</span> <span class="py-src-variable">render_to_response</span>
+<span class="py-src-keyword">from</span> <span class="py-src-variable">django</span>.<span class="py-src-variable">core</span>.<span class="py-src-variable">urlresolvers</span> <span class="py-src-keyword">import</span> <span class="py-src-variable">reverse</span>
+<span class="py-src-keyword">from</span> <span class="py-src-variable">django</span>.<span class="py-src-variable">contrib</span>.<span class="py-src-variable">auth</span> <span class="py-src-keyword">import</span> <span class="py-src-variable">authenticate</span>, <span class="py-src-variable">login</span>, <span class="py-src-variable">logout</span>
+<span class="py-src-keyword">from</span> <span class="py-src-variable">django</span>.<span class="py-src-variable">contrib</span>.<span class="py-src-variable">auth</span>.<span class="py-src-variable">models</span> <span class="py-src-keyword">import</span> <span class="py-src-variable">User</span>
+<span class="py-src-keyword">from</span> <span class="py-src-variable">django</span>.<span class="py-src-variable">db</span> <span class="py-src-keyword">import</span> <span class="py-src-variable">IntegrityError</span>
+<span class="py-src-keyword">from</span> <span class="py-src-variable">django</span>.<span class="py-src-variable">contrib</span>.<span class="py-src-variable">contenttypes</span>.<span class="py-src-variable">models</span> <span class="py-src-keyword">import</span> <span class="py-src-variable">ContentType</span>
+<span class="py-src-keyword">from</span> <span class="py-src-variable">django</span>.<span class="py-src-variable">contrib</span>.<span class="py-src-variable">auth</span>.<span class="py-src-variable">models</span> <span class="py-src-keyword">import</span> <span class="py-src-variable">User</span>
+<span class="py-src-keyword">from</span> <span class="py-src-variable">django</span>.<span class="py-src-variable">contrib</span>.<span class="py-src-variable">auth</span>.<span class="py-src-variable">decorators</span> <span class="py-src-keyword">import</span> <span class="py-src-variable">login_required</span>
+<span class="py-src-keyword">from</span> <span class="py-src-variable">django</span> <span class="py-src-keyword">import</span> <span class="py-src-variable">forms</span>
+<span class="py-src-keyword">import</span> <span class="py-src-variable">re</span>
+<span class="py-src-keyword">import</span> <span class="py-src-variable">os</span>
+<span class="py-src-keyword">import</span> <span class="py-src-variable">shutil</span>
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">clean_str</span>(<span class="py-src-parameter">s</span>):
+    <span class="py-src-variable">fc</span>=<span class="py-src-string">''</span>
+    <span class="py-src-keyword">for</span> <span class="py-src-variable">c</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">s</span>:
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">c</span>== <span class="py-src-string">'&lt;'</span>:
+            <span class="py-src-variable">fc</span>+=<span class="py-src-string">'&amp;lt;'</span>
+        <span class="py-src-keyword">elif</span> <span class="py-src-variable">c</span>==<span class="py-src-string">'&gt;'</span>:
+            <span class="py-src-variable">fc</span>+=<span class="py-src-string">'&amp;gt;'</span>
+        <span class="py-src-keyword">elif</span> <span class="py-src-variable">c</span>==<span class="py-src-string">'\''</span>:
+            <span class="py-src-variable">fc</span>+=<span class="py-src-string">'&amp;amp;'</span>
+        <span class="py-src-keyword">elif</span> <span class="py-src-variable">c</span>==<span class="py-src-string">'\"'</span>:
+            <span class="py-src-variable">fc</span>+=<span class="py-src-string">'&amp;quot;'</span>
+        <span class="py-src-keyword">else</span>:
+            <span class="py-src-variable">fc</span>+=<span class="py-src-variable">c</span>
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">fc</span>
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">get_current_song</span>():
+    <span class="py-src-variable">f</span>= <span class="py-src-variable">open</span>(<span class="py-src-string">'/home/kc/jango/status_data/current_song'</span>, <span class="py-src-string">'r'</span>)
+    <span class="py-src-variable">c</span>=<span class="py-src-variable">f</span>.<span class="py-src-variable">readline</span>()
+    <span class="py-src-variable">f</span>.<span class="py-src-variable">close</span>()
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">c</span>
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">get_server_token</span>():
+    <span class="py-src-variable">f</span> = <span class="py-src-variable">open</span>(<span class="py-src-string">'/home/kc/jango/status_data/server_pl_token'</span>, <span class="py-src-string">'r'</span>)
+    <span class="py-src-variable">t</span> = <span class="py-src-variable">int</span>(<span class="py-src-variable">f</span>.<span class="py-src-variable">readline</span>())
+    <span class="py-src-variable">f</span>.<span class="py-src-variable">close</span>()
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">t</span>
+    
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">set_server_token</span>(<span class="py-src-parameter">token</span>):
+    <span class="py-src-variable">f</span> = <span class="py-src-variable">open</span>(<span class="py-src-string">'/home/kc/jango/status_data/server_pl_token'</span>, <span class="py-src-string">'w'</span>)
+    <span class="py-src-variable">f</span>.<span class="py-src-variable">write</span>(<span class="py-src-variable">str</span>(<span class="py-src-variable">token</span>))
+    <span class="py-src-variable">f</span>.<span class="py-src-variable">close</span>()
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">update_server_token</span>():
+    <span class="py-src-variable">k</span>=<span class="py-src-variable">get_server_token</span>()
+    <span class="py-src-variable">set_server_token</span>(<span class="py-src-variable">k</span>+<span class="py-src-number">1</span>)
+    
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">index</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">render_to_response</span>(<span class="py-src-string">'select_song/login.html'</span>,{},<span class="py-src-variable">context_instance</span>=<span class="py-src-variable">RequestContext</span>(<span class="py-src-variable">request</span>))
+
+<span class="py-src-comment"># Shorter version</span>
+@<span class="py-src-variable">login_required</span>
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">epl</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-variable">english_list</span> = <span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">all</span>().<span class="py-src-variable">order_by</span>(<span class="py-src-string">'-times_played'</span>)[:<span class="py-src-number">30</span>]
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">render_to_response</span>(<span class="py-src-string">'select_song/pl.html'</span>,
+                              {<span class="py-src-string">'songs_list'</span> : <span class="py-src-variable">english_list</span>, <span class="py-src-string">'username'</span> : <span class="py-src-variable">request</span>.<span class="py-src-variable">user</span>},)
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">boom</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">index</span>(<span class="py-src-variable">request</span>)
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">register_task</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-variable">username</span> = <span class="py-src-variable">request</span>.<span class="py-src-variable">POST</span>[<span class="py-src-string">'username'</span>]
+    <span class="py-src-variable">passwd</span> = <span class="py-src-variable">request</span>.<span class="py-src-variable">POST</span>[<span class="py-src-string">'passwd'</span>]
+    <span class="py-src-variable">email</span> = <span class="py-src-variable">request</span>.<span class="py-src-variable">POST</span>[<span class="py-src-string">'email'</span>]
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">email</span>==<span class="py-src-string">''</span> <span class="py-src-keyword">or</span> <span class="py-src-variable">passwd</span>==<span class="py-src-string">''</span> <span class="py-src-keyword">or</span> <span class="py-src-variable">username</span>==<span class="py-src-string">''</span>:
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'You did not give correct credentials.'</span>)
+    <span class="py-src-keyword">try</span>:
+        <span class="py-src-variable">user</span> = <span class="py-src-variable">User</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">create_user</span>(<span class="py-src-variable">username</span>, <span class="py-src-variable">email</span>, <span class="py-src-variable">passwd</span>)
+    <span class="py-src-keyword">except</span> <span class="py-src-variable">IntegrityError</span>:
+        <span class="py-src-variable">message</span> = <span class="py-src-string">'Username '</span> + <span class="py-src-variable">username</span> + <span class="py-src-string">' already taken.'</span>
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">render_to_response</span>(<span class="py-src-string">'select_song/login.html'</span>,
+                                  {<span class="py-src-string">'error_message'</span> : <span class="py-src-variable">message</span>},
+                                  <span class="py-src-variable">context_instance</span> = <span class="py-src-variable">RequestContext</span>(<span class="py-src-variable">request</span>))
+    <span class="py-src-variable">user</span> = <span class="py-src-variable">authenticate</span>(<span class="py-src-variable">username</span>=<span class="py-src-variable">username</span>, <span class="py-src-variable">password</span>=<span class="py-src-variable">passwd</span>)
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">user</span> <span class="py-src-keyword">is</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">None</span>:
+        <span class="py-src-variable">login</span>(<span class="py-src-variable">request</span>, <span class="py-src-variable">user</span>)
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponseRedirect</span>(<span class="py-src-variable">reverse</span>(<span class="py-src-string">'select_song.views.epl'</span>, <span class="py-src-variable">args</span>=()))
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">render_to_response</span>(<span class="py-src-string">'select_song/login.html'</span>,
+                              {<span class="py-src-string">'error_message'</span> : <span class="py-src-string">'You are not autharized to access this app.'</span>},
+                              <span class="py-src-variable">context_instance</span> = <span class="py-src-variable">RequestContext</span>(<span class="py-src-variable">request</span>))
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">login_task</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-variable">username</span> = <span class="py-src-variable">request</span>.<span class="py-src-variable">POST</span>[<span class="py-src-string">'username'</span>]
+    <span class="py-src-variable">passwd</span> = <span class="py-src-variable">request</span>.<span class="py-src-variable">POST</span>[<span class="py-src-string">'passwd'</span>]
+    <span class="py-src-variable">user</span> = <span class="py-src-variable">authenticate</span>(<span class="py-src-variable">username</span>=<span class="py-src-variable">username</span>, <span class="py-src-variable">password</span>=<span class="py-src-variable">passwd</span>)
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">user</span> <span class="py-src-keyword">is</span> <span class="py-src-keyword">not</span> <span class="py-src-variable">None</span> <span class="py-src-keyword">and</span> <span class="py-src-variable">user</span>.<span class="py-src-variable">is_active</span> <span class="py-src-keyword">and</span> <span class="py-src-variable">user</span>.<span class="py-src-variable">is_authenticated</span>():
+        <span class="py-src-variable">login</span>(<span class="py-src-variable">request</span>, <span class="py-src-variable">user</span>)
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponseRedirect</span>(<span class="py-src-variable">reverse</span>(<span class="py-src-string">'select_song.views.epl'</span>, <span class="py-src-variable">args</span>=()))
+    <span class="py-src-keyword">else</span>:
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">render_to_response</span>(<span class="py-src-string">'select_song/login.html'</span>,
+                              {<span class="py-src-string">'error_message'</span> : <span class="py-src-string">'You are not autharized to access this app.'</span>},
+                              <span class="py-src-variable">context_instance</span> = <span class="py-src-variable">RequestContext</span>(<span class="py-src-variable">request</span>))
+                            
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">logout_task</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-variable">Playlist</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">filter</span>(<span class="py-src-variable">user_name</span>=<span class="py-src-variable">request</span>.<span class="py-src-variable">user</span>).<span class="py-src-variable">delete</span>()
+    <span class="py-src-variable">update_server_token</span>()
+    <span class="py-src-variable">logout</span>(<span class="py-src-variable">request</span>)
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponseRedirect</span>(<span class="py-src-variable">reverse</span>(<span class="py-src-string">'select_song.views.index'</span>, <span class="py-src-variable">args</span>=()))
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">update_choice_db</span>(<span class="py-src-parameter">u</span>, <span class="py-src-parameter">s</span>):
+    <span class="py-src-variable">e</span> = <span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">sname</span>=<span class="py-src-variable">s</span>)
+    <span class="py-src-keyword">try</span>:
+        <span class="py-src-variable">u</span> = <span class="py-src-variable">UserChoice</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">uname</span>=<span class="py-src-variable">u</span>, <span class="py-src-variable">song_record</span>=<span class="py-src-variable">e</span>)
+    <span class="py-src-keyword">except</span> <span class="py-src-variable">UserChoice</span>.<span class="py-src-variable">DoesNotExist</span>:
+        <span class="py-src-variable">UserChoice</span>(<span class="py-src-variable">song_record</span>=<span class="py-src-variable">e</span>, <span class="py-src-variable">uname</span>=<span class="py-src-variable">u</span>).<span class="py-src-variable">save</span>()
+
+<span class="py-src-comment"># look out for duplicate entries</span>
+@<span class="py-src-variable">login_required</span>
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">append_to_playlist</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-keyword">if</span> <span class="py-src-string">'song_name'</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span> <span class="py-src-keyword">and</span> <span class="py-src-variable">request</span>.<span class="py-src-variable">user</span>.<span class="py-src-variable">is_authenticated</span>():
+        <span class="py-src-variable">sname</span> = <span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span>[<span class="py-src-string">'song_name'</span>]
+        <span class="py-src-variable">update_choice_db</span>(<span class="py-src-variable">request</span>.<span class="py-src-variable">user</span>, <span class="py-src-variable">sname</span>)
+        <span class="py-src-keyword">try</span>:
+            <span class="py-src-variable">p</span>=<span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">sname</span>=<span class="py-src-variable">sname</span>)
+            <span class="py-src-variable">p</span>.<span class="py-src-variable">times_played</span>+=<span class="py-src-number">1</span>
+            <span class="py-src-variable">p</span>.<span class="py-src-variable">save</span>()
+        <span class="py-src-keyword">except</span> <span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">MultipleObjectsReturned</span>:
+            <span class="py-src-variable">p</span> = <span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">filter</span>(<span class="py-src-variable">sname</span>=<span class="py-src-variable">sname</span>)[:<span class="py-src-number">1</span>]
+        <span class="py-src-keyword">try</span>:
+            <span class="py-src-variable">sin</span> = <span class="py-src-variable">Playlist</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">song_record</span>=<span class="py-src-variable">p</span>)
+        <span class="py-src-keyword">except</span> <span class="py-src-variable">Playlist</span>.<span class="py-src-variable">DoesNotExist</span>:
+            <span class="py-src-variable">update_server_token</span>()
+            <span class="py-src-variable">Playlist</span>(<span class="py-src-variable">user_name</span>=<span class="py-src-variable">request</span>.<span class="py-src-variable">user</span>, <span class="py-src-variable">song_record</span>=<span class="py-src-variable">p</span>).<span class="py-src-variable">save</span>()
+            <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'added'</span>)
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'Redundant'</span>)
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'Error in append_to_playlist'</span>)
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">logintime</span>(<span class="py-src-parameter">x</span>):
+    <span class="py-src-variable">u</span>=<span class="py-src-variable">User</span>(<span class="py-src-variable">username</span>=<span class="py-src-variable">x</span>)
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">u</span>.<span class="py-src-variable">last_login</span>
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">sort_by_logintime</span>():
+    <span class="py-src-variable">d</span>=[]
+    <span class="py-src-keyword">for</span> <span class="py-src-variable">k</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">Playlist</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">all</span>():
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">k</span>.<span class="py-src-variable">user_name</span> <span class="py-src-keyword">not</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">d</span> <span class="py-src-keyword">and</span> <span class="py-src-variable">k</span>.<span class="py-src-variable">user_name</span> <span class="py-src-keyword">is</span> <span class="py-src-keyword">not</span> <span class="py-src-string">'AnonymousUser'</span>:
+            <span class="py-src-variable">d</span>.<span class="py-src-variable">append</span>(<span class="py-src-variable">k</span>.<span class="py-src-variable">user_name</span>)
+    <span class="py-src-variable">sorted</span>(<span class="py-src-variable">d</span>, <span class="py-src-variable">key</span>=<span class="py-src-variable">logintime</span>)
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">d</span>
+
+<span class="py-src-comment"># No setting of server token</span>
+@<span class="py-src-variable">login_required</span>
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">playlist_updated</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-variable">cmc</span> = <span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span>[<span class="py-src-string">'cmc'</span>]
+    [<span class="py-src-variable">mc</span>,<span class="py-src-variable">mcode</span>]=<span class="py-src-variable">get_messages</span>(<span class="py-src-variable">cmc</span>)
+    <span class="py-src-variable">mcode</span>=<span class="py-src-variable">clean_str</span>(<span class="py-src-variable">mcode</span>)
+    <span class="py-src-keyword">if</span> <span class="py-src-string">'client_pl_token'</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span> <span class="py-src-keyword">and</span> <span class="py-src-variable">request</span>.<span class="py-src-variable">user</span>.<span class="py-src-variable">is_authenticated</span>():
+        <span class="py-src-variable">client_pl_token</span> = <span class="py-src-variable">int</span>(<span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span>[<span class="py-src-string">'client_pl_token'</span>])
+        <span class="py-src-variable">server_pl_token</span> = <span class="py-src-variable">get_server_token</span>()
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">server_pl_token</span>&gt;<span class="py-src-variable">client_pl_token</span>:
+            <span class="py-src-keyword">if</span> <span class="py-src-variable">len</span>(<span class="py-src-variable">Playlist</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">all</span>()) == <span class="py-src-number">0</span>:
+                <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'&lt;?xml version="1.0" encoding="ISO-8859-1"?&gt;&lt;response&gt;&lt;code&gt;empty&lt;/code&gt;&lt;token&gt;'</span>+<span class="py-src-variable">str</span>(<span class="py-src-variable">server_pl_token</span>)+<span class="py-src-string">'&lt;/token&gt;&lt;messages&gt;'</span>+<span class="py-src-variable">mcode</span>+<span class="py-src-string">'&lt;/messages&gt;&lt;current_user&gt;&lt;/current_user&gt;&lt;mtoken&gt;'</span>+<span class="py-src-variable">str</span>(<span class="py-src-variable">mc</span>)+<span class="py-src-string">'&lt;/mtoken&gt;&lt;/response&gt;'</span>)
+            <span class="py-src-variable">pl</span> = <span class="py-src-variable">Playlist</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">all</span>()
+            <span class="py-src-variable">ul</span>=[]
+            <span class="py-src-variable">ul</span> = <span class="py-src-variable">sort_by_logintime</span>()
+            <span class="py-src-variable">cs</span>=<span class="py-src-variable">get_current_song</span>()
+            <span class="py-src-variable">current_user</span> = <span class="py-src-variable">get_current_user</span>()
+            <span class="py-src-variable">d</span>={}
+            <span class="py-src-keyword">for</span> <span class="py-src-variable">u</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">ul</span>:
+                <span class="py-src-variable">d</span>[<span class="py-src-variable">u</span>]=[]
+            <span class="py-src-keyword">for</span> <span class="py-src-variable">elem</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">pl</span>:
+                <span class="py-src-variable">d</span>[<span class="py-src-variable">elem</span>.<span class="py-src-variable">user_name</span>].<span class="py-src-variable">append</span>(<span class="py-src-variable">elem</span>.<span class="py-src-variable">song_record</span>.<span class="py-src-variable">sname</span>)
+            <span class="py-src-keyword">for</span> <span class="py-src-variable">k</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">d</span>.<span class="py-src-variable">keys</span>():
+                <span class="py-src-variable">d</span>[<span class="py-src-variable">k</span>] = <span class="py-src-variable">sorted</span>(<span class="py-src-variable">d</span>[<span class="py-src-variable">k</span>],<span class="py-src-variable">key</span>=<span class="py-src-variable">byid</span>)
+            <span class="py-src-variable">code</span>=<span class="py-src-string">'&lt;response&gt;&lt;code&gt;'</span>
+            <span class="py-src-variable">pcode</span> =<span class="py-src-string">'&lt;dl&gt;'</span>
+            <span class="py-src-keyword">for</span> <span class="py-src-variable">k</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">d</span>.<span class="py-src-variable">keys</span>():
+                <span class="py-src-variable">pcode</span> += <span class="py-src-string">'&lt;dt&gt;'</span>+<span class="py-src-variable">k</span>+<span class="py-src-string">'&lt;/dt&gt;'</span>
+                <span class="py-src-keyword">for</span> <span class="py-src-variable">l</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">d</span>[<span class="py-src-variable">k</span>]:
+                    <span class="py-src-variable">pcode</span>+=<span class="py-src-string">'&lt;dd&gt;'</span>+<span class="py-src-variable">l</span>+<span class="py-src-string">'&lt;/dd&gt;'</span>
+            <span class="py-src-variable">pcode</span> += <span class="py-src-string">'&lt;/dl&gt;'</span>
+            <span class="py-src-variable">fc</span>=<span class="py-src-variable">clean_str</span>(<span class="py-src-variable">pcode</span>)
+            <span class="py-src-variable">code</span>+=<span class="py-src-variable">fc</span>+<span class="py-src-string">'&lt;/code&gt;'</span>
+            <span class="py-src-variable">code</span>+=<span class="py-src-string">'&lt;token&gt;'</span>+<span class="py-src-variable">str</span>(<span class="py-src-variable">server_pl_token</span>)+<span class="py-src-string">'&lt;/token&gt;'</span>+<span class="py-src-string">'&lt;cs&gt;'</span>+<span class="py-src-variable">clean_str</span>(<span class="py-src-variable">cs</span>)+<span class="py-src-string">'&lt;/cs&gt;&lt;current_user&gt;'</span>+<span class="py-src-variable">current_user</span>+<span class="py-src-string">'&lt;/current_user&gt;&lt;messages&gt;'</span>+<span class="py-src-variable">mcode</span>+<span class="py-src-string">'&lt;/messages&gt;&lt;mtoken&gt;'</span>+<span class="py-src-variable">str</span>(<span class="py-src-variable">mc</span>)+<span class="py-src-string">'&lt;/mtoken&gt;&lt;/response&gt;'</span>
+            <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-variable">code</span>)
+        <span class="py-src-keyword">else</span>:
+            <span class="py-src-variable">current_user</span> = <span class="py-src-variable">get_current_user</span>()
+            <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'&lt;?xml version="1.0" encoding="ISO-8859-1"?&gt;&lt;response&gt;&lt;code&gt;&lt;/code&gt;&lt;token&gt;'</span>+<span class="py-src-variable">str</span>(<span class="py-src-variable">server_pl_token</span>)+<span class="py-src-string">'&lt;/token&gt;&lt;current_user&gt;'</span>+<span class="py-src-variable">current_user</span>+<span class="py-src-string">'&lt;/current_user&gt;&lt;messages&gt;'</span>+<span class="py-src-variable">mcode</span>+<span class="py-src-string">'&lt;/messages&gt;&lt;mtoken&gt;'</span>+<span class="py-src-variable">str</span>(<span class="py-src-variable">mc</span>)+<span class="py-src-string">'&lt;/mtoken&gt;&lt;/response&gt;'</span>)
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'Token not found'</span>) 
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">get_messages</span>(<span class="py-src-parameter">cmc</span>):
+    <span class="py-src-variable">code</span>=<span class="py-src-string">''</span>
+    <span class="py-src-variable">mc</span>=<span class="py-src-variable">UserMessage</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">count</span>()
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">cmc</span>==<span class="py-src-variable">mc</span>:
+        <span class="py-src-keyword">return</span> [<span class="py-src-variable">mc</span>, <span class="py-src-variable">code</span>]
+    <span class="py-src-variable">l</span>=<span class="py-src-variable">UserMessage</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">all</span>().<span class="py-src-variable">order_by</span>(<span class="py-src-string">'id'</span>)[<span class="py-src-variable">cmc</span>:]
+    <span class="py-src-keyword">for</span> <span class="py-src-variable">m</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">l</span>:
+        <span class="py-src-variable">code</span>+=<span class="py-src-string">'&lt;p&gt;&lt;span style="color : red"&gt;'</span>+<span class="py-src-variable">m</span>.<span class="py-src-variable">username</span>+<span class="py-src-string">'&lt;/span&gt; : '</span>+<span class="py-src-variable">str</span>(<span class="py-src-variable">m</span>)+<span class="py-src-string">'&lt;/p&gt;'</span>
+    <span class="py-src-keyword">return</span> [ <span class="py-src-variable">mc</span>, <span class="py-src-variable">code</span>]
+    
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">get_current_user</span>():
+    <span class="py-src-variable">f</span> = <span class="py-src-variable">open</span>(<span class="py-src-string">'/home/kc/jango/status_data/current_user'</span>, <span class="py-src-string">'r'</span>)
+    <span class="py-src-variable">current_user</span> = <span class="py-src-variable">f</span>.<span class="py-src-variable">readline</span>()
+    <span class="py-src-variable">f</span>.<span class="py-src-variable">close</span>()
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">current_user</span>
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">byid</span>(<span class="py-src-parameter">x</span>):
+    <span class="py-src-variable">m</span>=<span class="py-src-variable">Playlist</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">song_record</span>=<span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">sname</span>=<span class="py-src-variable">x</span>))
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">m</span>.<span class="py-src-variable">id</span>
+
+@<span class="py-src-variable">login_required</span>
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">search_result</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-keyword">if</span> <span class="py-src-string">'search_song'</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span>:
+        <span class="py-src-variable">s</span>=<span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span>[<span class="py-src-string">'search_song'</span>]
+        <span class="py-src-variable">res</span> = <span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">filter</span>(<span class="py-src-variable">sname__icontains</span>=<span class="py-src-variable">s</span>.<span class="py-src-variable">lower</span>())
+        <span class="py-src-variable">code</span>=<span class="py-src-string">''</span>
+        <span class="py-src-keyword">for</span> <span class="py-src-variable">m</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">res</span>:
+            <span class="py-src-variable">code</span>+=<span class="py-src-string">'&lt;li&gt;'</span>+<span class="py-src-variable">str</span>(<span class="py-src-variable">m</span>)+<span class="py-src-string">'&lt;/li&gt;'</span>
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-variable">code</span>)
+    <span class="py-src-keyword">else</span>:
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'Fuck!!!'</span>)
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">receive_message</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-variable">mesg</span> = <span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span>[<span class="py-src-string">'mesg'</span>]
+    <span class="py-src-variable">p</span>=<span class="py-src-variable">UserMessage</span>(<span class="py-src-variable">username</span>=<span class="py-src-variable">request</span>.<span class="py-src-variable">user</span>, <span class="py-src-variable">message</span>=<span class="py-src-variable">mesg</span>)
+    <span class="py-src-variable">p</span>.<span class="py-src-variable">save</span>()
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'Message added!!!'</span>)
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">remove_song</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-variable">song</span> = <span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span>[<span class="py-src-string">'song'</span>]
+    <span class="py-src-variable">e</span>=<span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">sname</span>=<span class="py-src-variable">song</span>)
+    <span class="py-src-variable">Playlist</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">get</span>(<span class="py-src-variable">song_record</span>=<span class="py-src-variable">e</span>).<span class="py-src-variable">delete</span>()
+    <span class="py-src-variable">update_server_token</span>()
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'Your song has __ '</span>+<span class="py-src-variable">song</span>+<span class="py-src-string">'__ been removed!'</span>)
+    
+@<span class="py-src-variable">login_required</span>
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">upload_song</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-variable">u</span> = <span class="py-src-variable">PrivilegeUser</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">filter</span>(<span class="py-src-variable">username</span>=<span class="py-src-variable">request</span>.<span class="py-src-variable">user</span>)
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">u</span>:
+        <span class="py-src-variable">form</span> = <span class="py-src-variable">UploadSongForm</span>()
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">render_to_response</span>(<span class="py-src-string">'select_song/upload_song.html'</span>, { <span class="py-src-string">'form'</span> : <span class="py-src-variable">form</span>}, <span class="py-src-variable">context_instance</span> = <span class="py-src-variable">RequestContext</span>(<span class="py-src-variable">request</span>))
+    <span class="py-src-keyword">else</span>:
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'You are not authorised to upload files.'</span>)
+<span class="py-src-comment">#usf</span>
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">upload_song_file</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">request</span>.<span class="py-src-variable">method</span> == <span class="py-src-string">'POST'</span>:
+        <span class="py-src-variable">form</span> = <span class="py-src-variable">UploadSongForm</span>(<span class="py-src-variable">request</span>.<span class="py-src-variable">POST</span>, <span class="py-src-variable">request</span>.<span class="py-src-variable">FILES</span>)
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">form</span>.<span class="py-src-variable">is_valid</span>():
+            <span class="py-src-variable">r</span> = <span class="py-src-variable">handle_song_file</span>(<span class="py-src-variable">request</span>.<span class="py-src-variable">FILES</span>[<span class="py-src-string">'file'</span>])
+            <span class="py-src-keyword">if</span> <span class="py-src-variable">r</span>==<span class="py-src-number">1</span>:
+                <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'Err in file name. Follow the rules!'</span>)
+            <span class="py-src-keyword">elif</span> <span class="py-src-variable">r</span> == <span class="py-src-number">2</span>:
+                <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'Song already exists!'</span>)
+            <span class="py-src-keyword">else</span>:
+                <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponseRedirect</span>(<span class="py-src-variable">reverse</span>(<span class="py-src-string">'select_song.views.epl'</span>, <span class="py-src-variable">args</span>=()))
+        <span class="py-src-keyword">else</span>:
+            <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'Someting went wrong!'</span>)
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">clean_name</span>(<span class="py-src-parameter">s</span>):
+    <span class="py-src-variable">pat</span> = <span class="py-src-string">r'(.+)\.m..$'</span>
+    <span class="py-src-variable">match</span> = <span class="py-src-variable">re</span>.<span class="py-src-variable">search</span>(<span class="py-src-variable">pat</span>, <span class="py-src-variable">s</span>, <span class="py-src-variable">re</span>.<span class="py-src-variable">I</span>)
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">match</span>:
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">match</span>.<span class="py-src-variable">group</span>(<span class="py-src-number">1</span>)
+    <span class="py-src-keyword">else</span>:
+        <span class="py-src-keyword">return</span> <span class="py-src-string">''</span>
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">handle_song_file</span>(<span class="py-src-parameter">song_file</span>):
+    <span class="py-src-variable">name</span> = <span class="py-src-variable">song_file</span>.<span class="py-src-variable">name</span>
+    <span class="py-src-variable">dname</span> = <span class="py-src-variable">clean_name</span>(<span class="py-src-variable">name</span>)
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">len</span>(<span class="py-src-variable">dname</span>) == <span class="py-src-number">0</span>:
+        <span class="py-src-keyword">return</span> <span class="py-src-number">1</span>
+    <span class="py-src-variable">dname</span> = <span class="py-src-variable">dname</span>.<span class="py-src-variable">lower</span>().<span class="py-src-variable">capitalize</span>()
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">os</span>.<span class="py-src-variable">path</span>.<span class="py-src-variable">exists</span>(<span class="py-src-string">'/home/kc/database_Song/'</span>+<span class="py-src-variable">dname</span>):
+        <span class="py-src-keyword">return</span> <span class="py-src-number">2</span>
+    <span class="py-src-variable">destination</span> = <span class="py-src-variable">open</span>(<span class="py-src-string">'/home/kc/database_songs/'</span>+<span class="py-src-variable">dname</span>, <span class="py-src-string">'w'</span>)
+    <span class="py-src-keyword">for</span> <span class="py-src-variable">chunk</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">song_file</span>.<span class="py-src-variable">chunks</span>():
+        <span class="py-src-variable">destination</span>.<span class="py-src-variable">write</span>(<span class="py-src-variable">chunk</span>)
+    <span class="py-src-variable">destination</span>.<span class="py-src-variable">close</span>()
+    <span class="py-src-variable">EnglishSong</span>(<span class="py-src-variable">sname</span>=<span class="py-src-variable">dname</span>,<span class="py-src-variable">times_played</span>=<span class="py-src-number">0</span>).<span class="py-src-variable">save</span>()
+    <span class="py-src-keyword">return</span> <span class="py-src-number">3</span>
+
+<span class="py-src-keyword">class</span> <span class="py-src-identifier">UploadSongForm</span>(<span class="py-src-parameter">forms</span>.<span class="py-src-parameter">Form</span>):
+    <span class="py-src-variable">file</span> = <span class="py-src-variable">forms</span>.<span class="py-src-variable">FileField</span>()
+
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">get_my_choices</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-variable">l</span> = <span class="py-src-variable">UserChoice</span>.<span class="py-src-variable">get_choices</span>(<span class="py-src-variable">request</span>.<span class="py-src-variable">user</span>)
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">l</span>:
+        <span class="py-src-variable">s</span>=<span class="py-src-string">''</span>
+        <span class="py-src-keyword">for</span> <span class="py-src-variable">k</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">l</span>:
+            <span class="py-src-variable">s</span>+=<span class="py-src-string">'&lt;li&gt;'</span>+<span class="py-src-variable">k</span>+<span class="py-src-string">'&lt;/li&gt;'</span>
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-variable">s</span>)
+    <span class="py-src-keyword">else</span>:
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'NULL'</span>)
+
+<span class="py-src-comment">#rsv</span>
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rsv</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">render_to_response</span>(<span class="py-src-string">'select_song/renamesong.html'</span>, {})
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">rename_song</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-variable">o_name</span> = <span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span>[<span class="py-src-string">'old_name'</span>]
+    <span class="py-src-variable">n_name</span> = <span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span>[<span class="py-src-string">'new_name'</span>]
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">o_name</span> == <span class="py-src-variable">n_name</span>:
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'Both names are same!'</span>)
+    <span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">filter</span>(<span class="py-src-variable">sname</span>=<span class="py-src-variable">o_name</span>).<span class="py-src-variable">update</span>(<span class="py-src-variable">sname</span>=<span class="py-src-variable">n_name</span>)
+    <span class="py-src-variable">r</span>=<span class="py-src-string">r'/home/kc/database_songs/'</span>
+    <span class="py-src-variable">shutil</span>.<span class="py-src-variable">move</span>(<span class="py-src-variable">r</span>+<span class="py-src-variable">o_name</span>, <span class="py-src-variable">r</span>+<span class="py-src-variable">n_name</span>)
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">'Thanks for helping!'</span>)
+
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">get_batch</span>(<span class="py-src-parameter">f</span>, <span class="py-src-parameter">c</span>):
+    <span class="py-src-variable">code</span>=<span class="py-src-string">''</span>
+    <span class="py-src-variable">tc</span> = <span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">count</span>()
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">f</span>&gt;<span class="py-src-variable">tc</span>:
+        <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-string">''</span>)
+    <span class="py-src-keyword">if</span> <span class="py-src-variable">c</span>&gt;<span class="py-src-number">0</span>: <span class="py-src-comment"># going forward</span>
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">tc</span>-<span class="py-src-variable">f</span>&lt;<span class="py-src-variable">c</span>:
+            <span class="py-src-variable">l</span> = <span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">all</span>()[<span class="py-src-variable">f</span>:]
+        <span class="py-src-keyword">else</span>:
+            <span class="py-src-variable">l</span> = <span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">all</span>()[<span class="py-src-variable">f</span>:<span class="py-src-variable">f</span>+<span class="py-src-variable">c</span>]
+    <span class="py-src-keyword">else</span>:  <span class="py-src-comment"># going back</span>
+        <span class="py-src-variable">c</span>=<span class="py-src-variable">abs</span>(<span class="py-src-variable">c</span>)
+        <span class="py-src-keyword">if</span> <span class="py-src-variable">f</span>&lt;<span class="py-src-variable">c</span>:
+            <span class="py-src-variable">l</span> = <span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">all</span>()[<span class="py-src-number">0</span>:<span class="py-src-variable">f</span>]
+        <span class="py-src-keyword">else</span>:
+            <span class="py-src-variable">l</span> = <span class="py-src-variable">EnglishSong</span>.<span class="py-src-variable">objects</span>.<span class="py-src-variable">all</span>()[<span class="py-src-variable">f</span>-<span class="py-src-variable">c</span>:<span class="py-src-variable">f</span>]
+    <span class="py-src-keyword">for</span> <span class="py-src-variable">k</span> <span class="py-src-keyword">in</span> <span class="py-src-variable">l</span>:
+        <span class="py-src-variable">code</span>+=<span class="py-src-string">'&lt;li&gt;'</span>+<span class="py-src-variable">str</span>(<span class="py-src-variable">k</span>)+<span class="py-src-string">'&lt;/li&gt;'</span>
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">code</span>
+    
+@<span class="py-src-variable">login_required</span>
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">next_batch</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-variable">f</span> = <span class="py-src-variable">int</span>(<span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span>[<span class="py-src-string">'batch'</span>])
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-variable">get_batch</span>(<span class="py-src-variable">f</span>, <span class="py-src-number">30</span>))
+
+@<span class="py-src-variable">login_required</span>
+<span class="py-src-keyword">def</span> <span class="py-src-identifier">prev_batch</span>(<span class="py-src-parameter">request</span>):
+    <span class="py-src-variable">f</span> = <span class="py-src-variable">int</span>(<span class="py-src-variable">request</span>.<span class="py-src-variable">GET</span>[<span class="py-src-string">'batch'</span>])
+    <span class="py-src-keyword">return</span> <span class="py-src-variable">HttpResponse</span>(<span class="py-src-variable">get_batch</span>(<span class="py-src-variable">f</span>, -<span class="py-src-number">30</span>))
+    
+        
+</pre>
+</body>

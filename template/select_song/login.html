@@ -1,0 +1,29 @@
+<html>
+  <head>
+    <title>Jango!</title>
+  </head>
+<body style="font-size : 13px">
+  <h2>Welcome to Jango! (Beta version)</h2>
+<p>Login if you are a registered user</p>
+<form action="login_task" method="post">
+  {% csrf_token %}
+  Username <input type="text" name="username" id="uname" value="" /> <br />
+  Password <input type="password" name="passwd" id="passwd" value="" /> <br />
+  <input type="submit" value="Go!" />
+</form>
+
+<br \>
+<br \>
+
+<p>Resgister, if you have not registered.</p>
+<form action="register_task" method="post">
+  {% csrf_token %}
+  Username -  <input type="text" name="username" id="uname" value="" /> <br />
+  Password -  <input type="password" name="passwd" id="passwd" value="" /> <br />
+  Email -  <input type="text" name="email" id="email" value="" /> <br />
+  <input type="submit" value="Register!" />
+</form>
+
+{% if error_message %}<p><strong>{{ error_message|lower|striptags }}</strong></p>{% endif %}
+</body>
+</html>

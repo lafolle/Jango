@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<title>Your wish is my command</title>
+
+<head>
+ <style type="text/css">
+   .body { font-size : 13px }
+   .gp { float : right; font-size : 13px }
+   .sl { float : left; font-size : 13px }
+ </style>
+ <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js"></script> 
+<!-- <script type="text/javascript" src="/static_media/jquery.js"> </script> -->
+ <script type="text/javascript" src="/static_media/settings.js"></script>
+
+</head>
+
+<body style="font-size : 13px" >
+  
+  <form id="search_form">
+    Song name : <input id="q" type="text" />
+    <input type="submit" /><br />
+  </form>
+  
+  <div id="dologout" align="right">
+    <em><a href="logout_task">logout <span id="myself">{{ username }}</span></a></em>
+  </div>
+  
+  <ul id="search_list"></ul>
+
+
+  <div id="sl" class="sl">
+    <button id="prevb">Prev</button>
+    <button id="nextb">Next</button>
+    <h3>List of Songs</h3>
+    {% if songs_list %}
+    <ul id="sp">
+      {% for song in songs_list %}
+      <li>{{ song.sname }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <a href="http://www.python.org"><img src="static_media/pythonpowered.png" alt="Python rocks!" width="100" height="40" /></a>
+  </div>
+  
+  <a href="upload_song" class="clickable">Upload</a> your file (Only authorised users.).<br />
+  If you find song named incorrectly, <a href="rsv">contribute</a>.
+  
+  <div id="gp" class="gp">
+    <h3>Global Playlist</h3>
+    <ul id="gpl"></ul>
+  </div>
+
+  <p id="nfc" style="font-size : 13px">Nothing new :(</p>
+
+  <div id="messages">
+    Press submit to <em>submit</em> messages...<br />
+    <div id="mesg_area"></div>
+    <form id="mesg_form">
+      <textarea  cols="50" rows="1"></textarea><br />
+      <input type="submit" align="right" value="Make them listen me!"/>
+    </form>
+  </div>
+
+
+
+</body>
+</html>
